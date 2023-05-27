@@ -11,6 +11,7 @@ model:
     cond_stage_key: "txt"
     image_size: 64
     channels: 4
+    use_ema: false
     cond_stage_trainable: false   # Note: different from the one we trained before
     conditioning_key: crossattn
     scale_factor: 0.18215
