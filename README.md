@@ -1,5 +1,11 @@
 # 1、说明
 本项目是对 https://github.com/justinpinkney/stable-diffusion 项目的改造
+系列介绍文章见
+[【stable-diffusion企业级教程01】从零开始，目标：成为神奇宝贝训练大师！](https://zhuanlan.zhihu.com/p/629243584)
+[【stable-diffusion企业级教程02】pytorch-lighting？我要deepspeed](https://zhuanlan.zhihu.com/p/630832066)
+[【stable-diffusion企业级教程03】FP16真香！(想说爱你不容易）](https://zhuanlan.zhihu.com/p/631016323)
+[【stable-diffusion企业级教程04】EMA你走,拥抱16G显存！Xformers是未来！](https://zhuanlan.zhihu.com/p/632607725)
+
 
 # 2、启动方式
 
