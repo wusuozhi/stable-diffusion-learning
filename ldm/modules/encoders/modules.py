@@ -280,6 +280,45 @@ class FrozenCLIPEmbedder(AbstractEncoder):
     def encode(self, text):
         return self(text)
 
+
+
+import cn_clip.clip as cnclip
+from cn_clip.clip import load_from_name
+class FrozenCNClipEmbedder(AbstractEncoder):
+    def __init__(self, version="weights/clip_cn_vit/clip_cn_vit-h-14.pt", device="cuda", max_length=77):  
+        super().__init__()
+        model_type = 'ViT-H-14'
+        model, preprocess = load_from_name(model_type, device=device, download_root='./weights/clip_cn_vit')
+        self.model = model
+        self.clip = cnclip
+        self.max_length = max_length
+        self.device = device
+        self.init_fc = nn.Linear(1024,768)
+        
+        
+
+    def freeze(self):
+        self.model = self.model.eval()
+        #self.train = disabled_train
+        for param in self.parameters():
+            param.requires_grad = False
+    
+    def forward(self, text):
+        # print("self.model.dtype",self.model.dtype)
+        batch_encoding = self.clip.tokenize(texts=text,context_length=self.max_length)
+        tokens = batch_encoding.to(self.device)
+        # print("tokens",tokens)
+
+        pad_index = self.model.tokenizer.vocab['[PAD]']
+        attn_mask = tokens.ne(pad_index) #.type(self.model.dtype)
+        z = self.model.bert(tokens, attention_mask=attn_mask)[0] #.type(self.model.dtype) # [batch_size, seq_length, hidden_size]
+        
+        z = self.init_fc(z)
+        return z
+
+    def encode(self, text):
+        return self(text)
+
 import torch.nn.functional as F
 from transformers import CLIPVisionModel
 class ClipImageProjector(AbstractEncoder):

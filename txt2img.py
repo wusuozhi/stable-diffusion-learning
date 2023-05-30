@@ -205,6 +205,7 @@ def main():
         sampler = PLMSSampler(model)
     else:
         sampler = DDIMSampler(model)
+        sampler.fp16= False
 
     os.makedirs(opt.outdir, exist_ok=True)
     outpath = opt.outdir

@@ -15,7 +15,7 @@ model:
     conditioning_key: hybrid   # important
     monitor: val/loss_simple_ema
     scale_factor: 0.18215
-    ckpt_path: "/fsx/stable-diffusion/stable-diffusion/checkpoints2/v1pp/v1pp-flatline-pruned.ckpt"
+    # ckpt_path: "/fsx/stable-diffusion/stable-diffusion/checkpoints2/v1pp/v1pp-flatline-pruned.ckpt"
 
     scheduler_config: # 10000 warmup steps
       target: ldm.lr_scheduler.LambdaLinearScheduler

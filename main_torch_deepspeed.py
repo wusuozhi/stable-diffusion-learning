@@ -56,7 +56,8 @@ def get_parser(**parser_kwargs):
         "--finetune_from",
         type=str,
         nargs="?",
-        default="weights/sd-v1-4-full-ema.ckpt",
+        # default="weights/sd-v1-4-full-ema.ckpt",
+        default="weights/sd-v1-4.ckpt",
         help="path to checkpoint to load model state from"
     )
     parser.add_argument(
@@ -236,7 +237,7 @@ if __name__ == "__main__":
     seed_everything(opt.seed)
 
     fp16=True
-    bs = 1 
+    bs = 2
     deepspeed_config = {
             'train_micro_batch_size_per_gpu': bs,
             "optimizer": {
@@ -287,8 +288,16 @@ if __name__ == "__main__":
     m, u = model.load_state_dict(sd, strict=False)
 
     # 2、optimizer
-    lr = 1e-4
-    params = list(model.model.parameters())
+    for k,v in model.named_parameters():
+        if k.startswith("cond_stage_model"):
+            v.requires_grad=True
+        if k.startswith("model"):
+            v.requires_grad=True
+        if k.startswith("first_stage_model"):
+            v.requires_grad=False
+    lr = 1e-2 #1e-4
+    # params = list(model.model.parameters())
+    params = list(model.cond_stage_model.parameters()) # for cond stage model
     opt = torch.optim.AdamW(params, lr=lr)
     
     # 3、dataset
@@ -298,9 +307,11 @@ if __name__ == "__main__":
 
     # 4、wrapper with  deepspeed
     model_engine, optimizer, trainloader, _ = deepspeed.initialize(args=deepspeed_config, 
-                                                        model=model.model, 
+                                                        # model=model.model, 
+                                                        model = model,
                                                         optimizer=opt,
-                                                        model_parameters=filter(lambda p: p.requires_grad, model.model.parameters()), 
+                                                        # model_parameters=filter(lambda p: p.requires_grad, model.model.parameters()), 
+                                                        model_parameters=filter(lambda p: p.requires_grad, model.cond_stage_model.parameters()),  # for cond stage model
                                                         config_params=deepspeed_config,
                                                         training_data=dataset)
     model.cuda()
@@ -309,9 +320,11 @@ if __name__ == "__main__":
     
     model.fp16=fp16
     if fp16:
+        print("running half!")
         # model.model.diffusion_model.convert_to_fp16()
         model.model = model.model.half()
         model.cond_stage_model = model.cond_stage_model.half()
+        model.cond_stage_model.use_fp16 = True
         model.first_stage_model = model.first_stage_model.half()
     
 
@@ -326,11 +339,30 @@ if __name__ == "__main__":
             else:
                 bs['image'] = bs['image'].cuda()
             loss = model.training_step(bs, i)
+            print('model_engine.dtype',model_engine.dtype)
+            print("model.cond_stage_model",model.cond_stage_model.model.dtype)
+
             model_engine.backward(loss)
             model_engine.step()
             model.on_train_batch_end()
             torch.distributed.all_reduce(loss, op=torch.distributed.ReduceOp.SUM)
             torch.cuda.synchronize()
+
+            if model_engine.local_rank==0:
+                for name, parms in model.named_parameters():
+                    try:
+                        if "cond_stage_model.model.bert.encoder.layer.23.output.dense.weight" in name:
+                            print('-->steps: ',' -->name:', name, '-->grad_requirs:',parms.requires_grad, \
+                            ' -->grad_value:',parms.grad,' -->value:',parms)
+                        if 'model.diffusion_model.input_blocks.1.1.transformer_blocks.0.attn1.to_q.weight' in name:
+                            print('-->steps: ',' -->name:', name, '-->grad_requirs:',parms.requires_grad, \
+                            ' -->grad_value:',parms.grad,' -->value:',parms)
+                        if 'first_stage_model.quant_conv.bias' in name:
+                            print('-->steps: ',' -->name:', name, '-->grad_requirs:',parms.requires_grad, \
+                            ' -->grad_value:',parms.grad,' -->value:',parms)
+                    except Exception as e:
+                        print('Print Error,Dose Not Matter',e)
+                        break
         
         test_model(model,epoch)
         saving_path = f"logs/main_torch_deepspeed/{epoch}.pt"
